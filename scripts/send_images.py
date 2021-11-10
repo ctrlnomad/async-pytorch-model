@@ -37,17 +37,19 @@ if __name__ ==  '__main__':
                         loop=loop)
     else:
         project_id = 'vectorai-331519'
-        topic_id = 'fmnist_requests'
-        subscription_id = 'fmnist_listener'
+        request_topic_id = 'fmnist_requests'
+        result_topic_id = 'fmnist_results'
+        subscription_id = 'fmnist_listener' # not used
 
-        server = GoogleServer(project_id=project_id, topic_id=topic_id, subscription_id=subscription_id)
-
+        server = GoogleServer(project_id=project_id, 
+                            request_topic_id=request_topic_id,
+                            result_topic_id=result_topic_id,
+                             subscription_id=subscription_id, loop=loop)
 
 
     for i in range(NUM_MSGS):
         arr = valid_ds.data[i].detach().cpu().numpy()
         img_bytes = array2bytes(arr)
-  
         time.sleep(random.random()) # simulate latency
-        server.send(img_bytes, key=i.to_bytes(2, byteorder='big'))
+        server.send(img_bytes, key=i)
         logger.info(f'sent image #{i}')

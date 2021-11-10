@@ -6,3 +6,4 @@ google-cloud-pubsub
 aiokafka
 json 
 PIL
+nest_asyncio

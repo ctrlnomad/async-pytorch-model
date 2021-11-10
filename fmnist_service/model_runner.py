@@ -75,16 +75,16 @@ class ModelRunner:
 
             del batch
 
-    async def process_request(self, msg):
-        req = Request(msg.value, self.loop)
-        logger.info(f'started on request #{msg.key}')
+    async def process_request(self, data, key):
+        req = Request(data, self.loop)
+        logger.info(f'started on request #{key}')
 
         async with self.queue_lock:
             self.queue.append(req)
             self.schedule_processing_if_needed()
         
         await req.done_event.wait()
-        logger.info(f'finished request #{msg.key}, result={req.result}')
+        logger.info(f'finished request #{key}, result={req.result}')
         return req.result
 
 

@@ -1,5 +1,7 @@
 
 import asyncio
+import nest_asyncio # i don't like this
+nest_asyncio.apply()
 
 from pubsub import KafkaServer, GoogleServer
 
@@ -21,22 +23,26 @@ def parse_args():
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     save_path = './fmnist_network.pth'
-
     # KAFKA CONFIG
     # consume_topic_id = 'fmnist_request'
     # publish_topic_id = 'fmnist_result'
     # server_address = 'localhost:9092'
     
     # server = KafkaServer(consume_topic_id=consume_topic_id, 
-    #                 publish_topic_id =publish_topic_id, 
-    #                 server_address=server_address,
-    #                 loop=loop)
+    #                      publish_topic_id=publish_topic_id, 
+    #                      server_address=server_address,
+    #                      loop=loop)
 
     project_id = 'vectorai-331519'
-    topic_id = 'fmnist_requests'
+
+    request_topic_id = 'fmnist_requests'
+    result_topic_id = 'fmnist_results'
+
     subscription_id = 'fmnist_listener'
 
-    server = GoogleServer(project_id=project_id, topic_id=topic_id, subscription_id=subscription_id)
+
+    server = GoogleServer(project_id=project_id, request_topic_id=request_topic_id,
+                        result_topic_id=result_topic_id, subscription_id=subscription_id, loop=loop)
 
     classifier = ImageClassifier.from_path(save_path)
 

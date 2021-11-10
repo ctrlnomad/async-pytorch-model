@@ -40,7 +40,9 @@ def array2bytes(numpy_array:np.array) -> str:
 def bytes2array(bs) -> np.array:
 
     # Read byte array to an Image
-    im = Image.open(io.BytesIO(bs))
+    bs = io.BytesIO(bs)
+    bs.seek(0)
+    im = Image.open(bs)
     
     # Return Image to numpy array format
     return np.array(im)
