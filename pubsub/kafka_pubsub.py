@@ -13,9 +13,10 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 class KafkaServer(PubSubServer):
-    def __init__(self, consume_topic_id, server_address, loop, publish_topic_id=None) -> None:
-        self.consume_topic_id = consume_topic_id
-        self.publish_topic_id = publish_topic_id
+    def __init__(self, request_topic_id, result_topic_id, server_address, loop=None) -> None:
+        self.request_topic_id = request_topic_id
+        self.result_topic_id = result_topic_id
+
         self.server_address = server_address
 
         self.producer = KafkaProducer(bootstrap_servers=[self.server_address])
@@ -25,7 +26,7 @@ class KafkaServer(PubSubServer):
 
     async def _async_resolve(self, proc_fn):
         self.consumer = AIOKafkaConsumer(
-                self.consume_topic_id, 
+                self.request_topic_id, 
                 bootstrap_servers=[self.server_address],
                 loop=self.loop, value_deserializer=bytes2array)
 
@@ -34,7 +35,7 @@ class KafkaServer(PubSubServer):
         try:
             async for message in self.consumer:
                 logger.info(f'received a new message')
-                task = self.proc_and_send(proc_fn(message), key=message.key)
+                task = self.proc_and_send(proc_fn(message.value), key=message.key)
                 self.loop.create_task(task)
                 tasks.append(task)
         finally:
@@ -48,17 +49,25 @@ class KafkaServer(PubSubServer):
         if not isinstance(result, bytes):
             result = result.to_bytes(2, byteorder='big')
 
-        self.send(result, key=key)
+        self.sync_send(result, key, topic=self.result_topic_id)
 
     def start_transaction_service(self, proc_fn: callable):
         logging.info('started listening ... ')
         self.loop.run_until_complete(self._async_resolve(proc_fn))
 
-    def send(self, msg, key=None):
-        self.producer.send(self.publish_topic_id, msg, key=key)
+    def sync_send(self, msg, key: bytes, topic = None):
+        if topic is None:
+            topic = self.request_topic_id
 
-    def sync_listen(self) -> Generator:
-        consumer = KafkaConsumer(self.consume_topic_id)
+        self.producer.send(topic, msg, key=key)
+        logger.info(f'sent a msg with key [{key}] to [{topic}]')
+
+    def sync_listen(self, topic=None) -> Generator:
+        if topic is None:
+            topic = self.result_topic_id
+
+        logger.info(f'started sync listening on [{topic}]')
+        consumer = KafkaConsumer(topic)
 
         for msg in consumer:
             yield msg
@@ -66,16 +75,3 @@ class KafkaServer(PubSubServer):
         consumer.close()
 
 
-
-if __name__ ==  '__main__':
-    consume_topic_id = 'fmnist_request'
-    publish_topic_id = 'fmnist_result'
-    server_address = 'localhost:9092'
-
-    loop = asyncio.get_event_loop()
-    s = KafkaServer(consume_topic_id=consume_topic_id, 
-                    publish_topic_id =publish_topic_id, 
-                    server_address=server_address,
-                    loop=loop)
-
-    s.start_transaction_service(proc_fn=async_proc)

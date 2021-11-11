@@ -28,7 +28,7 @@ class GoogleServer(PubSubServer):
         self.loop = loop
         self.timeout = None
 
-    def send(self, msg, key: int=None, topic=None ):
+    def sync_send(self, msg, key: bytes, topic=None ):
         if topic is None: 
             topic = self.request_topic_path
 
@@ -57,17 +57,13 @@ class GoogleServer(PubSubServer):
             msg.ack()
             logger.info('msg acknowledged')
 
-            logger.info(f'before msg data: {type(msg.data)} {len(msg.data)}')
             msg_data = bytes2array(msg.data) 
-            logger.info(f'after msg data: {type(msg_data)} {len(msg_data)}')
-
-            result = self.loop.run_until_complete(fn(msg_data, key))
-            logger.info(f'result for msg with key [{key}] is [{result}]')
+            result = self.loop.run_until_complete(fn(msg_data))
 
             if not isinstance(result, bytes):
                 result = result.to_bytes(2, byteorder='big')
 
-            self.send(result, topic=self.result_topic_path, key=key) # different 
+            self.sync_send(result, topic=self.result_topic_path, key=key) # different 
 
         except Exception as e:
             logger.info(f"failed to process {msg} becasue {e}")

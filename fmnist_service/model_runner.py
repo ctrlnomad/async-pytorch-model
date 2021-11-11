@@ -2,13 +2,18 @@ import asyncio
 import torch
 import functools
 
-from classifier.image_classifier import ImageClassifier
+from fmnist_classifier.image_classifier import ImageClassifier
 
 import logging 
 logger = logging.getLogger(__name__)
 
 class ModelRunner:
-    def __init__(self, model_path, batch_size:int = 5, max_wait_time: int = 5) -> None:
+    """
+    The Model Runner class is responsible for running a pretrained model on batched inputs coming in from a PubSub server
+    To provide more throughput the process batching and inference is done asynchronously 
+    The class should be run ModelRunner.__call__() in a non-blocking way so we can also listen on the PubSub server
+    """
+    def __init__(self, model_path, batch_size:int = 5, max_wait_time: int = 5,device: torch.device = torch.device('cpu')) -> None:
         self.loop = asyncio.get_event_loop()
         
         self.queue = []
@@ -16,7 +21,7 @@ class ModelRunner:
         self.queue_lock = asyncio.Lock(loop=self.loop)
         self.needs_processing = asyncio.Event(loop=self.loop)
 
-        self.device = torch.device('cpu')
+        self.device = device
 
         self.model = ImageClassifier.from_path(model_path)
 
@@ -75,23 +80,25 @@ class ModelRunner:
 
             del batch
 
-    async def process_request(self, data, key):
+    async def process_request(self, data):
         req = Request(data, self.loop)
-        logger.info(f'started on request #{key}')
+        logger.info(f'started on new request')
 
         async with self.queue_lock:
             self.queue.append(req)
             self.schedule_processing_if_needed()
         
         await req.done_event.wait()
-        logger.info(f'finished request #{key}, result={req.result}')
+        logger.info(f'finished request')
         return req.result
 
 
 
 
 class Request:
-
+    """
+    Request is a helper class to use isntead of a dictionary 
+    """
     def __init__(self, data, loop) -> None:
         
         self.time = loop.time()

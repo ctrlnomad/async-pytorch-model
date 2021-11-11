@@ -2,54 +2,66 @@ import asyncio
 
 import time, random, logging
 
-from pubsub import KafkaServer, GoogleServer
-from pubsub.utils import array2bytes
-from classifier.train_fmnist import valid_ds
+from torch.types import Number
 
+from pubsub import KafkaServer, GoogleServer
+from pubsub.base import PubSubServer
+from pubsub.utils import array2bytes
+from scripts.train_fmnist import parse_args, valid_ds
+
+from argparse import ArgumentParser
 
 logger = logging.getLogger(__name__)
 
 import numpy as np
 
 
-NUM_MSGS = 10
-NUM_KEY_BYTES = np.log2(NUM_MSGS) // 8
-KAFKA = False
+NUM_MSGS = len(valid_ds)
+NUM_KEY_BYTES = int(np.ceil(np.log2(NUM_MSGS) / 8))
 
 def seralise_key(key: int) -> bytes:
     return key.to_bytes(NUM_KEY_BYTES, byteorder='big')
 
-def deserialise_key(key: bytes) -> int:
+def deserialise_key(key: bytes) -> int: 
     return int.from_bytes(key, byteorder='big')
 
+
+def parse_args():
+    parser = ArgumentParser()
+    parser.add_argument('--gcloud', default=False)
+
+    parser.add_argument('--project_id',  default='vectorai-331519')
+    parser.add_argument('--subscription_id', default='fmnist_listener') # 'fmnist_results_listener'
+
+    parser.add_argument('--save_path', default='./fmnist_network.pth')
+    parser.add_argument('--request_topic_id', default='fmnist_request')
+    parser.add_argument('--result_topic_id', default='fmnist_result')
+
+    parser.add_argument('--server_address', default='localhost:9092')
+    return parser.parse_args()
+
 if __name__ ==  '__main__':
+    args = parse_args()
     loop = asyncio.get_event_loop()
+
+    server: PubSubServer
     
-    if KAFKA:
-        publish_topic_id = 'fmnist_request'
-        consume_topic_id = 'none'
+    if args.gcloud:
+        server = GoogleServer(project_id=args.project_id, 
+                              request_topic_id=args.request_topic_id,
+                              result_topic_id=args.result_topic_id,
+                              subscription_id=args.subscription_id, loop=loop)
 
-        server_address = 'localhost:9092'
-
-        server = KafkaServer(consume_topic_id=consume_topic_id, 
-                        publish_topic_id =publish_topic_id, 
-                        server_address=server_address,
-                        loop=loop)
     else:
-        project_id = 'vectorai-331519'
-        request_topic_id = 'fmnist_requests'
-        result_topic_id = 'fmnist_results'
-        subscription_id = 'fmnist_listener' # not used
-
-        server = GoogleServer(project_id=project_id, 
-                            request_topic_id=request_topic_id,
-                            result_topic_id=result_topic_id,
-                             subscription_id=subscription_id, loop=loop)
-
+        server = KafkaServer(request_topic_id=args.request_topic_id,
+                            result_topic_id=args.result_topic_id, 
+                            server_address=args.server_address, loop=loop)
 
     for i in range(NUM_MSGS):
-        arr = valid_ds.data[i].detach().cpu().numpy()
+        arr = valid_ds.data[i].cpu().numpy()
         img_bytes = array2bytes(arr)
-        time.sleep(random.random()) # simulate latency
-        server.send(img_bytes, key=i)
+        key_bytes = seralise_key(i)
+        
+        time.sleep(1e-2*random.random())
+        server.sync_send(img_bytes, key=key_bytes)
         logger.info(f'sent image #{i}')
