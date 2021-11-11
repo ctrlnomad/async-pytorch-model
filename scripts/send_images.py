@@ -7,7 +7,7 @@ from torch.types import Number
 from pubsub import KafkaServer, GoogleServer
 from pubsub.base import PubSubServer
 from pubsub.utils import array2bytes
-from scripts.train_fmnist import parse_args, valid_ds
+from scripts.train_classifier import parse_args, valid_ds
 
 from argparse import ArgumentParser
 
@@ -62,6 +62,7 @@ if __name__ ==  '__main__':
         img_bytes = array2bytes(arr)
         key_bytes = seralise_key(i)
         
-        time.sleep(1e-2*random.random())
+        time.sleep(1e-2*random.random()) # simlate latency
+
         server.sync_send(img_bytes, key=key_bytes)
         logger.info(f'sent image #{i}')

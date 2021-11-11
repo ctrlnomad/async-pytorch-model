@@ -1,7 +1,7 @@
 import logging
 
 from pubsub import KafkaServer, GoogleServer
-from scripts.train_fmnist import valid_ds
+from scripts.train_classifier import valid_ds
 
 from argparse import ArgumentParser
 
